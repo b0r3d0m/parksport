@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parks Passport</title>
+    <link rel="preconnect" href="https://js.arcgis.com" />
+    <link rel="stylesheet" href="https://js.arcgis.com/4.32/esri/themes/light/main.css" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://js.arcgis.com/4.32/"></script>
+    <script defer src="./app.js"></script>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar" aria-label="Park controls and site list">
+        <header class="brand">
+          <div>
+            <p class="eyebrow">United States</p>
+            <h1>Parks Passport</h1>
+          </div>
+          <button class="icon-button" id="resetViewButton" type="button" aria-label="Reset map view" title="Reset map view">
+            <i data-lucide="map"></i>
+          </button>
+        </header>
+
+        <section class="stats" aria-label="Visit progress">
+          <div>
+            <span id="visitedCount">0</span>
+            <small>visited</small>
+          </div>
+          <div>
+            <span id="visibleCount">0</span>
+            <small>showing</small>
+          </div>
+          <div>
+            <span id="totalCount">0</span>
+            <small>loaded</small>
+          </div>
+        </section>
+
+        <section class="controls" aria-label="Search and filters">
+          <label class="search">
+            <i data-lucide="search"></i>
+            <input id="searchInput" type="search" placeholder="Search parks, states, designations" autocomplete="off" />
+          </label>
+
+          <div class="segmented" role="tablist" aria-label="Park source">
+            <button class="segment active" type="button" data-source="all">All</button>
+            <button class="segment" type="button" data-source="nps">NPS</button>
+            <button class="segment" type="button" data-source="usfs">Forest</button>
+            <button class="segment" type="button" data-source="state">State</button>
+          </div>
+
+          <div class="filter-grid">
+            <label>
+              <span>State</span>
+              <select id="stateFilter">
+                <option value="all">All states</option>
+              </select>
+            </label>
+            <label>
+              <span>Status</span>
+              <select id="statusFilter">
+                <option value="all">Visited and unvisited</option>
+                <option value="visited">Visited</option>
+                <option value="unvisited">Unvisited</option>
+              </select>
+            </label>
+          </div>
+
+          <details class="data-panel">
+            <summary>
+              <span>NPS API key</span>
+              <i data-lucide="chevron-down"></i>
+            </summary>
+            <div class="api-row">
+              <input id="npsKeyInput" type="password" placeholder="Optional developer.nps.gov key" autocomplete="off" />
+              <button id="loadNpsButton" type="button">
+                <i data-lucide="refresh-cw"></i>
+                Load
+              </button>
+            </div>
+          </details>
+        </section>
+
+        <main class="list-wrap">
+          <div class="list-header">
+            <strong>Sites</strong>
+            <div class="list-actions">
+              <input id="importInput" class="file-input" type="file" accept=".csv,text/csv" />
+              <button id="importButton" class="text-button" type="button">
+                <i data-lucide="upload"></i>
+                Import
+              </button>
+              <button id="clearButton" class="text-button danger" type="button">
+                <i data-lucide="rotate-ccw"></i>
+                Clear
+              </button>
+              <button id="exportButton" class="text-button" type="button">
+                <i data-lucide="download"></i>
+                Export
+              </button>
+            </div>
+          </div>
+          <div id="parkList" class="park-list" aria-live="polite"></div>
+        </main>
+      </aside>
+
+      <section class="map-panel" aria-label="Interactive United States parks map">
+        <div class="map-topbar">
+          <div class="source-note" id="sourceNote">
+            <span id="sourceNoteText">Loading USGS PAD-US 4.1...</span>
+            <button class="source-note-close" id="sourceNoteClose" type="button" aria-label="Dismiss status message" title="Dismiss">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+          <details class="legend" id="legendControl" aria-label="Map legend" open>
+            <summary>
+              <span>Site Legend</span>
+              <i data-lucide="chevron-down"></i>
+            </summary>
+            <div class="legend-items">
+              <span><b class="dot national-park"></b>National Park</span>
+              <span><b class="dot nps"></b>Other NPS</span>
+              <span><b class="dot usfs"></b>National Forest</span>
+              <span><b class="dot state"></b>State Park</span>
+              <span><b class="dot visited"></b>Visited</span>
+            </div>
+          </details>
+        </div>
+        <div id="viewDiv"></div>
+      </section>
+    </div>
+
+    <template id="parkItemTemplate">
+      <article class="park-item">
+        <button class="park-main" type="button">
+          <span class="park-type"></span>
+          <span class="park-name"></span>
+          <span class="park-meta"></span>
+        </button>
+        <button class="visit-button" type="button" aria-label="Toggle visited" title="Toggle visited">
+          <i data-lucide="check"></i>
+        </button>
+      </article>
+    </template>
+  </body>
+</html>
