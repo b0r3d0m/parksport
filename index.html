@@ -68,20 +68,6 @@
               </select>
             </label>
           </div>
-
-          <details class="data-panel">
-            <summary>
-              <span>NPS API key</span>
-              <i data-lucide="chevron-down"></i>
-            </summary>
-            <div class="api-row">
-              <input id="npsKeyInput" type="password" placeholder="Optional developer.nps.gov key" autocomplete="off" />
-              <button id="loadNpsButton" type="button">
-                <i data-lucide="refresh-cw"></i>
-                Load
-              </button>
-            </div>
-          </details>
         </section>
 
         <main class="list-wrap">
@@ -93,13 +79,13 @@
                 <i data-lucide="upload"></i>
                 Import
               </button>
-              <button id="clearButton" class="text-button danger" type="button">
-                <i data-lucide="rotate-ccw"></i>
-                Clear
-              </button>
               <button id="exportButton" class="text-button" type="button">
                 <i data-lucide="download"></i>
                 Export
+              </button>
+              <button id="clearButton" class="text-button danger" type="button">
+                <i data-lucide="rotate-ccw"></i>
+                Clear
               </button>
             </div>
           </div>
@@ -110,7 +96,7 @@
       <section class="map-panel" aria-label="Interactive United States parks map">
         <div class="map-topbar">
           <div class="source-note" id="sourceNote">
-            <span id="sourceNoteText">Loading USGS PAD-US 4.1...</span>
+            <span id="sourceNoteText">Loading park data...</span>
             <button class="source-note-close" id="sourceNoteClose" type="button" aria-label="Dismiss status message" title="Dismiss">
               <i data-lucide="x"></i>
             </button>
@@ -130,6 +116,15 @@
           </details>
         </div>
         <div id="viewDiv"></div>
+        <div class="loading-overlay" id="loadingOverlay" aria-live="polite">
+          <div class="loading-card">
+            <div class="spinner" aria-hidden="true"></div>
+            <div>
+              <strong id="loadingTitle">Loading map</strong>
+              <span id="loadingDetail">Preparing the park directory...</span>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
 

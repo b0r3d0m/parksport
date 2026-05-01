@@ -10,14 +10,14 @@ A static website for tracking visited National Park Service sites, National Fore
 - Visited parks are saved in the browser with `localStorage`.
 - Export your visited list as a CSV and import shared CSVs to mark matching sites as visited.
 - Clear all visited sites from the local browser state.
-- Optional official NPS API import with a free `developer.nps.gov` key.
+- Park directory data is cached locally after the first load; reload the page to refresh source data.
 
 ## Data sources
 
-- State parks, National Forests, and the default NPS layer use USGS PAD-US 4.1 through the public ArcGIS REST service:
+- NPS units use the public NPS Land Resources Division centroid service:
+  `https://services1.arcgis.com/fBc8EJBxQRMcHlei/ArcGIS/rest/services/NPS_Land_Resources_Division_Boundary_and_Tract_Data_Service/FeatureServer/0`
+- State parks and National Forests use USGS PAD-US 4.1 through the public ArcGIS REST service:
   `https://edits.nationalmap.gov/arcgis/rest/services/PAD-US/PAD_US_4_1/MapServer/0`
-- An optional NPS API key can load the official NPS parks directory from:
-  `https://developer.nps.gov/api/v1/parks`
 - Visited status is stored locally in the browser with `localStorage`.
 
 ## Run

@@ -1,13 +1,54 @@
 ﻿const PADUS_LAYER_URL =
   "https://edits.nationalmap.gov/arcgis/rest/services/PAD-US/PAD_US_4_1/MapServer/0";
 
+const NPS_CENTROIDS_URL =
+  "https://services1.arcgis.com/fBc8EJBxQRMcHlei/ArcGIS/rest/services/NPS_Land_Resources_Division_Boundary_and_Tract_Data_Service/FeatureServer/0";
+
 const STORAGE_KEY = "parks-passport.visited.v1";
-const NPS_KEY_STORAGE = "parks-passport.nps-key";
+const CACHE_KEY = "parks-passport.directory-cache.v3";
+const CACHE_VERSION = "2026-05-01-nps-centroids";
 const SOURCE_LABELS = {
   nps: "NPS",
   usfs: "National Forest",
   state: "State Park",
 };
+
+const MANUAL_NPS_UNITS = [
+  {
+    id: "nps:natr",
+    legacyIds: [],
+    source: "nps",
+    name: "Natchez Trace National Scenic Trail",
+    state: "MS",
+    states: ["MS", "TN", "AL"],
+    stateName: "Mississippi, Tennessee, Alabama",
+    rawDesignation: "National Scenic Trail",
+    designation: "National Scenic Trail",
+    manager: "National Park Service",
+    acres: 0,
+    access: "",
+    point: { longitude: -88.825, latitude: 34.54 },
+    feature: null,
+    searchText: "",
+  },
+  {
+    id: "nps:pohe",
+    legacyIds: [],
+    source: "nps",
+    name: "Potomac Heritage National Scenic Trail",
+    state: "VA",
+    states: ["VA", "MD", "DC", "PA"],
+    stateName: "Virginia, Maryland, District of Columbia, Pennsylvania",
+    rawDesignation: "National Scenic Trail",
+    designation: "National Scenic Trail",
+    manager: "National Park Service",
+    acres: 0,
+    access: "",
+    point: { longitude: -77.45, latitude: 39.05 },
+    feature: null,
+    searchText: "",
+  },
+];
 
 const stateNames = {
   AL: "Alabama",
@@ -72,6 +113,65 @@ const stateAbbrByName = Object.fromEntries(
   Object.entries(stateNames).map(([abbr, name]) => [name.toLowerCase(), abbr])
 );
 
+const stateCentroids = {
+  AL: [-86.79, 32.81],
+  AK: [-152.4, 64.2],
+  AZ: [-111.66, 34.27],
+  AR: [-92.44, 34.89],
+  CA: [-119.47, 37.18],
+  CO: [-105.55, 38.99],
+  CT: [-72.73, 41.62],
+  DE: [-75.51, 39.0],
+  DC: [-77.04, 38.91],
+  FL: [-82.45, 28.63],
+  GA: [-83.44, 32.64],
+  HI: [-155.52, 19.6],
+  ID: [-114.61, 44.35],
+  IL: [-89.2, 40.04],
+  IN: [-86.28, 39.89],
+  IA: [-93.5, 42.07],
+  KS: [-98.38, 38.5],
+  KY: [-85.3, 37.53],
+  LA: [-91.96, 30.98],
+  ME: [-69.06, 45.25],
+  MD: [-76.79, 39.05],
+  MA: [-71.8, 42.26],
+  MI: [-85.43, 44.35],
+  MN: [-94.31, 46.28],
+  MS: [-89.65, 32.74],
+  MO: [-92.46, 38.36],
+  MT: [-109.63, 47.05],
+  NE: [-99.68, 41.5],
+  NV: [-116.63, 39.33],
+  NH: [-71.58, 43.68],
+  NJ: [-74.67, 40.19],
+  NM: [-106.11, 34.41],
+  NY: [-75.53, 42.95],
+  NC: [-79.39, 35.56],
+  ND: [-100.47, 47.45],
+  OH: [-82.79, 40.29],
+  OK: [-97.49, 35.59],
+  OR: [-120.56, 44.14],
+  PA: [-77.8, 40.88],
+  RI: [-71.56, 41.68],
+  SC: [-80.9, 33.92],
+  SD: [-100.23, 44.44],
+  TN: [-86.35, 35.86],
+  TX: [-99.33, 31.48],
+  UT: [-111.67, 39.31],
+  VT: [-72.71, 44.07],
+  VA: [-78.66, 37.52],
+  WA: [-120.45, 47.38],
+  WV: [-80.61, 38.64],
+  WI: [-89.99, 44.62],
+  WY: [-107.55, 42.99],
+  AS: [-170.7, -14.27],
+  GU: [144.79, 13.44],
+  MP: [145.67, 15.1],
+  PR: [-66.59, 18.22],
+  VI: [-64.9, 18.34],
+};
+
 const state = {
   view: null,
   npsLayer: null,
@@ -99,7 +199,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindElements();
   bindControls();
   renderIcons();
-  loadSavedNpsKey();
+  setLoading(true, "Loading map", "Preparing the interactive map and park directory...");
 });
 
 require([
@@ -135,10 +235,10 @@ require([
     ],
   });
 
-  state.npsLayer = makePadusSource("nps", "Mang_Name = 'NPS'");
+  state.npsLayer = makeNpsSource();
   state.usfsLayer = makePadusSource(
     "usfs",
-    "Mang_Name = 'USFS' AND Des_Tp = 'NF' AND Unit_Nm NOT LIKE '% Other' AND Unit_Nm NOT LIKE '%Purchase Unit%'"
+    "Mang_Name = 'USFS' AND Des_Tp = 'NF' AND Unit_Nm LIKE '%National Forest' AND Unit_Nm <> 'George Washington and Jefferson National Forest'"
   );
   state.stateLayer = makePadusSource("state", "Des_Tp = 'SP'");
 
@@ -165,6 +265,7 @@ require([
     constraints: {
       minZoom: 3,
       snapToZoom: false,
+      rotationEnabled: false,
     },
     popup: {
       dockEnabled: true,
@@ -180,6 +281,7 @@ require([
   });
 
   state.view.when(async () => {
+    state.view.rotation = 0;
     state.renderSiteMarkers = renderSiteMarkers;
     state.renderVisitedMarkers = renderVisitedMarkers;
     await loadPadusDirectory();
@@ -190,6 +292,8 @@ require([
   function makePadusSource(source, definitionExpression) {
     return {
       source,
+      url: PADUS_LAYER_URL,
+      kind: "padus",
       definitionExpression,
       outFields: [
         "OBJECTID",
@@ -207,29 +311,56 @@ require([
     };
   }
 
+  function makeNpsSource() {
+    return {
+      source: "nps",
+      url: NPS_CENTROIDS_URL,
+      kind: "nps",
+      definitionExpression:
+        "UNIT_TYPE NOT IN ('National Trails System', 'Affiliated Area') AND UNIT_CODE <> 'RRBH'",
+      outFields: ["OBJECTID", "UNIT_CODE", "UNIT_NAME", "STATE", "UNIT_TYPE", "PARKNAME"],
+    };
+  }
+
   async function loadPadusDirectory() {
-    setSourceNote("Loading PAD-US park directory...");
+    setSourceNote("Loading park directory...");
+    setLoading(true, "Loading sites", "Checking the local cache...");
     try {
+      const cachedItems = readDirectoryCache();
+      if (cachedItems && !shouldRefreshCache()) {
+        state.items = cachedItems.sort(sortItems);
+        migrateVisitedIds(state.items);
+        populateStateFilter();
+        applyFilters();
+        setSourceNote(`Loaded ${formatNumber(state.items.length)} cached records. Reload the page to refresh source data.`);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true, "Loading sites", "Downloading NPS units, National Forests, and state parks...");
       const [npsFeatures, usfsFeatures, stateFeatures] = await Promise.all([
         queryAllFeatures(state.npsLayer, "nps"),
         queryAllFeatures(state.usfsLayer, "usfs"),
         queryAllFeatures(state.stateLayer, "state"),
       ]);
 
-      const padusItems = dedupeItems([...npsFeatures, ...usfsFeatures, ...stateFeatures]);
+      const padusItems = dedupeItems([...npsFeatures, ...MANUAL_NPS_UNITS, ...usfsFeatures, ...stateFeatures]);
       state.items = padusItems.sort(sortItems);
+      writeDirectoryCache(state.items);
       migrateVisitedIds(state.items);
       populateStateFilter();
       applyFilters();
       setSourceNote(
-        `Loaded ${formatNumber(state.items.length)} records from USGS PAD-US 4.1, including NPS sites, National Forests, and state parks.`
+        `Loaded ${formatNumber(state.items.length)} records: ${formatNumber(countBySource("nps"))} NPS units, ${formatNumber(countBySource("usfs"))} National Forests, and ${formatNumber(countBySource("state"))} state parks.`
       );
+      setLoading(false);
     } catch (error) {
       console.error(error);
       state.items = [];
       populateStateFilter();
       applyFilters();
       setSourceNote("Could not load the PAD-US directory. Check network access and reload the page.");
+      setLoading(false);
     }
   }
 
@@ -240,17 +371,17 @@ require([
     const pageSize = source === "nps" ? 500 : 2000;
 
     while (hasMore && start < 24000) {
-      const url = new URL(`${PADUS_LAYER_URL}/query`);
+      const url = new URL(`${layer.url}/query`);
       url.searchParams.set("f", "json");
       url.searchParams.set("where", layer.definitionExpression);
       url.searchParams.set("outFields", layer.outFields.join(","));
       url.searchParams.set("returnGeometry", "true");
       url.searchParams.set("outSR", "4326");
       url.searchParams.set("geometryPrecision", "4");
-      url.searchParams.set("maxAllowableOffset", "0.05");
+      if (layer.kind === "padus") url.searchParams.set("maxAllowableOffset", "0.05");
       url.searchParams.set("resultOffset", String(start));
       url.searchParams.set("resultRecordCount", String(pageSize));
-      url.searchParams.set("orderByFields", "State_Nm ASC,Unit_Nm ASC");
+      url.searchParams.set("orderByFields", layer.kind === "nps" ? "UNIT_NAME ASC" : "State_Nm ASC,Unit_Nm ASC");
 
       const response = await fetch(url);
       if (!response.ok) throw new Error(`PAD-US query returned ${response.status}`);
@@ -259,12 +390,43 @@ require([
       if (result.error) throw new Error(result.error.message || "PAD-US query failed");
 
       const page = result.features || [];
-      features.push(...page.map((feature) => normalizeFeature(feature, source)));
+      const normalize = layer.kind === "nps" ? normalizeNpsFeature : normalizeFeature;
+      features.push(...page.map((feature) => normalize(feature, source)));
       hasMore = Boolean(result.exceededTransferLimit) || page.length === pageSize;
       start += pageSize;
     }
 
     return features.filter((item) => item.name && item.point && !isExcludedItem(item));
+  }
+
+  function normalizeNpsFeature(feature, source) {
+    const attrs = feature?.attributes || {};
+    const name = cleanName(attrs.UNIT_NAME || "Unnamed NPS unit");
+    const stateCodes = String(attrs.STATE || "")
+      .split(",")
+      .map((value) => normalizeState(value))
+      .filter(Boolean);
+    const point = geometryToPoint(feature?.geometry);
+    const code = cleanName(attrs.UNIT_CODE).toLowerCase();
+    const nameSlug = slug(name);
+
+    return {
+      id: `nps:${code || nameSlug}`,
+      legacyIds: [`padus:nps:${nameSlug}`],
+      source,
+      name,
+      state: stateCodes[0] || "",
+      states: stateCodes,
+      stateName: formatStateNames(stateCodes),
+      rawDesignation: cleanName(attrs.UNIT_TYPE),
+      designation: cleanName(attrs.UNIT_TYPE || "National Park Service unit"),
+      manager: "National Park Service",
+      acres: 0,
+      access: "",
+      point,
+      feature,
+      searchText: "",
+    };
   }
 
   function normalizeFeature(feature, source) {
@@ -381,13 +543,14 @@ function bindElements() {
     sourceNote: document.getElementById("sourceNote"),
     sourceNoteText: document.getElementById("sourceNoteText"),
     sourceNoteClose: document.getElementById("sourceNoteClose"),
+    loadingOverlay: document.getElementById("loadingOverlay"),
+    loadingTitle: document.getElementById("loadingTitle"),
+    loadingDetail: document.getElementById("loadingDetail"),
     resetViewButton: document.getElementById("resetViewButton"),
     exportButton: document.getElementById("exportButton"),
     clearButton: document.getElementById("clearButton"),
     importButton: document.getElementById("importButton"),
     importInput: document.getElementById("importInput"),
-    npsKeyInput: document.getElementById("npsKeyInput"),
-    loadNpsButton: document.getElementById("loadNpsButton"),
     sourceButtons: [...document.querySelectorAll("[data-source]")],
   });
 }
@@ -426,7 +589,6 @@ function bindControls() {
   els.clearButton.addEventListener("click", clearVisited);
   els.importButton.addEventListener("click", () => els.importInput.click());
   els.importInput.addEventListener("change", importVisited);
-  els.loadNpsButton.addEventListener("click", loadNpsApiDirectory);
   els.sourceNoteClose.addEventListener("click", () => {
     els.sourceNote.classList.add("hidden");
   });
@@ -674,92 +836,20 @@ function isNationalPark(item) {
 }
 
 function isExcludedItem(item) {
-  return item.source === "usfs" && /\bother$/i.test(item.name);
+  return (
+    item.source === "usfs" &&
+    (/\bother$/i.test(item.name) ||
+      /purchase unit/i.test(item.name) ||
+      /land utilization project/i.test(item.name) ||
+      /experimental area/i.test(item.name) ||
+      item.name === "George Washington and Jefferson National Forest")
+  );
 }
 
 function zoomForItem(item) {
   if (item.source === "state") return 11;
   if (item.source === "usfs") return 8;
   return isNationalPark(item) ? 8 : 9;
-}
-
-async function loadNpsApiDirectory() {
-  const key = els.npsKeyInput.value.trim();
-  if (!key) {
-    setSourceNote("Enter a free NPS API key from developer.nps.gov, then load the official NPS directory.");
-    return;
-  }
-
-  localStorage.setItem(NPS_KEY_STORAGE, key);
-  setSourceNote("Loading official NPS site directory...");
-
-  try {
-    const endpoint = new URL("https://developer.nps.gov/api/v1/parks");
-    endpoint.searchParams.set("limit", "600");
-    endpoint.searchParams.set("fields", "images");
-    endpoint.searchParams.set("api_key", key);
-
-    const response = await fetch(endpoint);
-    if (!response.ok) throw new Error(`NPS API returned ${response.status}`);
-    const payload = await response.json();
-
-    const npsItems = (payload.data || [])
-      .map(normalizeNpsApiPark)
-      .filter((item) => item.name && item.point);
-
-    const stateItems = state.items.filter((item) => item.source !== "nps");
-    state.items = dedupeItems([...stateItems, ...npsItems]).sort(sortItems);
-    migrateVisitedIds(state.items);
-    populateStateFilter();
-    applyFilters();
-    setSourceNote(`Loaded official NPS directory plus USGS PAD-US National Forests and state parks.`);
-  } catch (error) {
-    console.error(error);
-    setSourceNote("Could not load NPS API data. Check the key and network access; PAD-US records remain available.");
-  }
-}
-
-function normalizeNpsApiPark(park) {
-  const coords = parseLatLong(park.latLong);
-  const states = (park.states || "").split(",").map((value) => value.trim()).filter(Boolean);
-  const primaryState = states[0] || "";
-  const designation = park.designation || "National Park Service site";
-
-  const item = {
-    id: `nps-api:${park.parkCode}`,
-    legacyIds: [],
-    source: "nps",
-    name: cleanName(park.fullName || park.name),
-    state: primaryState,
-    states,
-    stateName: states.map((abbr) => stateNames[abbr] || abbr).join(", "),
-    rawDesignation: cleanName(park.designation),
-    designation: cleanName(designation),
-    manager: "National Park Service",
-    acres: 0,
-    access: "",
-    point: coords,
-    feature: null,
-    searchText: "",
-  };
-
-  item.searchText = makeSearchText(item);
-  return item;
-}
-
-function parseLatLong(value) {
-  const latMatch = String(value || "").match(/lat:\s*(-?\d+(\.\d+)?)/i);
-  const lonMatch = String(value || "").match(/long:\s*(-?\d+(\.\d+)?)/i);
-  if (!latMatch || !lonMatch) return null;
-  return {
-    latitude: Number(latMatch[1]),
-    longitude: Number(lonMatch[1]),
-  };
-}
-
-function loadSavedNpsKey() {
-  const key = localStorage.getItem(NPS_KEY_STORAGE);
-  if (key) els.npsKeyInput.value = key;
 }
 
 function exportVisited() {
@@ -1169,6 +1259,10 @@ function formatNumber(value) {
   return new Intl.NumberFormat("en-US").format(value || 0);
 }
 
+function countBySource(source) {
+  return state.items.filter((item) => item.source === source).length;
+}
+
 function readJson(key, fallback) {
   try {
     return JSON.parse(localStorage.getItem(key)) || fallback;
@@ -1177,10 +1271,46 @@ function readJson(key, fallback) {
   }
 }
 
+function shouldRefreshCache() {
+  const navigation = performance.getEntriesByType?.("navigation")?.[0];
+  return navigation?.type === "reload";
+}
+
+function readDirectoryCache() {
+  try {
+    const payload = JSON.parse(localStorage.getItem(CACHE_KEY));
+    if (!payload || payload.version !== CACHE_VERSION || !Array.isArray(payload.items)) return null;
+    return payload.items.map((item) => prepareItem(item));
+  } catch {
+    return null;
+  }
+}
+
+function writeDirectoryCache(items) {
+  const payload = {
+    version: CACHE_VERSION,
+    savedAt: Date.now(),
+    items: items.map(({ feature, searchText, ...item }) => item),
+  };
+
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    console.warn("Could not cache park directory", error);
+  }
+}
+
 function setSourceNote(message) {
   if (!els.sourceNoteText) return;
   els.sourceNoteText.textContent = message;
   els.sourceNote?.classList.remove("hidden");
+}
+
+function setLoading(active, title = "Loading", detail = "") {
+  if (!els.loadingOverlay) return;
+  els.loadingOverlay.classList.toggle("hidden", !active);
+  if (els.loadingTitle) els.loadingTitle.textContent = title;
+  if (els.loadingDetail) els.loadingDetail.textContent = detail;
 }
 
 function escapeHtml(value) {
